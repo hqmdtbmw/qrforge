@@ -13,10 +13,11 @@ import {
 } from 'lucide-react';
 import { QR_TYPES, BANK_STANDARDS, COUNTRIES, QRType, NIGERIA_BANKS } from '../constants/qrTypes';
 import { generateQRDesignSuggestions, suggestQRContent } from '../lib/gemini';
+import { buildQrPayload } from '../lib/qrPayload';
 import { createQRCode, updateQRCode, createCampaign, addVariationToCampaign, subscribeToUserFolders, Folder, subscribeToPlans, recordDownload, checkDownloadLimit, subscribeToUserOrganizations } from '../services/db';
 import { useAuth } from '../AuthContext';
 import { QRPreview, QRPreviewHandle } from './QRPreview';
-import { cn, validateLogo, crc16 } from '../lib/utils';
+import { cn, validateLogo } from '../lib/utils';
 import { storage } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useToast } from './Toast';
@@ -426,89 +427,7 @@ export const CreateQRModal: React.FC<CreateQRModalProps> = ({ isOpen, onClose, i
     : content;
 
   useEffect(() => {
-    let newContent = '';
-    switch (qrType) {
-      case 'text': newContent = fields.text; break;
-      case 'link': newContent = fields.url; break;
-      case 'phone': newContent = `tel:${fields.phone}`; break;
-      case 'sms': newContent = `SMSTO:${fields.phone}:${fields.message}`; break;
-      case 'email': newContent = `mailto:${fields.email}?subject=${encodeURIComponent(fields.subject)}&body=${encodeURIComponent(fields.body)}`; break;
-      case 'wifi': newContent = `WIFI:T:${fields.encryption};S:${fields.ssid};P:${fields.password};;`; break;
-      case 'whatsapp': newContent = `https://wa.me/${fields.phone}?text=${encodeURIComponent(fields.message)}`; break;
-      case 'instagram': newContent = `https://instagram.com/${fields.text.replace('@', '')}`; break;
-      case 'twitter': newContent = `https://twitter.com/${fields.text.replace('@', '')}`; break;
-      case 'linkedin': newContent = `https://linkedin.com/in/${fields.text}`; break;
-      case 'vcard':
-        newContent = `BEGIN:VCARD\nVERSION:3.0\nN:${fields.lastName};${fields.firstName}\nORG:${fields.org}\nTITLE:${fields.jobTitle || fields.title}\nEMAIL:${fields.email}\nTEL:${fields.phone}\nURL:${fields.website}\nADR:;;${fields.address}\nNOTE:${fields.notes}\nEND:VCARD`;
-        break;
-      case 'social':
-        newContent = JSON.stringify({ type: 'social', profileName: fields.profileName, links: fields.socialLinks });
-        break;
-      case 'file':
-        newContent = fields.fileUrl;
-        break;
-      case 'event':
-        newContent = `BEGIN:VEVENT\nSUMMARY:${fields.eventTitle}\nLOCATION:${fields.location}\nDESCRIPTION:${fields.description}\nEND:VEVENT`;
-        break;
-      case 'crypto':
-        newContent = `${fields.currency.toLowerCase()}:${fields.address}?amount=${fields.amount}`;
-        break;
-      case 'bank':
-        if (fields.bankStandard === 'sepa') {
-          // SEPA Credit Transfer (SCT) format
-          newContent = `BCD\n001\n1\nSCT\n${fields.bankBic || ''}\n${fields.bankName || ''}\n${fields.bankIban || ''}\nEUR${fields.amount || '0.00'}\n\n${fields.bankReference || ''}`;
-        } else if (fields.bankStandard === 'upi') {
-          newContent = `upi://pay?pa=${fields.bankUpiId}&pn=${encodeURIComponent(fields.bankName)}&am=${fields.amount}&cu=INR&tn=${encodeURIComponent(fields.bankReference)}`;
-        } else if (fields.bankStandard === 'pix') {
-          // Pix Static QR Code (BRCode)
-          const pixKey = fields.bankPixKey || '';
-          const name = (fields.bankName || 'QRForge').substring(0, 25).toUpperCase();
-          const city = (fields.bankCity || 'CITY').substring(0, 15).toUpperCase();
-          const amount = fields.amount ? parseFloat(fields.amount).toFixed(2) : '0.00';
-          
-          // Data Objects (EMV QRCPS)
-          // 00: Payload Format Indicator
-          // 26: Merchant Account Information (Pix)
-          // 52: Merchant Category Code
-          // 53: Transaction Currency (986 = BRL)
-          // 54: Transaction Amount
-          // 58: Country Code (BR)
-          // 59: Merchant Name
-          // 60: Merchant City
-          // 62: Additional Data Field Template
-          
-          let payload = '000201';
-          payload += '26' + (22 + pixKey.length).toString().padStart(2, '0');
-          payload += '0014BR.GOV.BCB.PIX';
-          payload += '01' + pixKey.length.toString().padStart(2, '0') + pixKey;
-          payload += '52040000';
-          payload += '5303986';
-          if (parseFloat(amount) > 0) {
-            payload += '54' + amount.length.toString().padStart(2, '0') + amount;
-          }
-          payload += '5802BR';
-          payload += '59' + name.length.toString().padStart(2, '0') + name;
-          payload += '60' + city.length.toString().padStart(2, '0') + city;
-          payload += '62070503***';
-          payload += '6304'; // CRC16 indicator
-          
-          const crc = crc16(payload);
-          newContent = payload + crc;
-        } else if (fields.bankStandard === 'nqr') {
-          newContent = fields.nqrPayload || `nqr://pay?acc=${fields.bankAccount}&bank=${fields.bankName}&name=${encodeURIComponent(fields.bankName)}&am=${fields.amount}`;
-        } else {
-          newContent = `Bank: ${fields.bankName}\nAccount: ${fields.bankAccount}\nAmount: ${fields.amount} ${fields.currency}\nRef: ${fields.bankReference}`;
-        }
-        break;
-      case 'menu':
-        newContent = JSON.stringify({ type: 'menu', items: fields.menuItems });
-        break;
-      case 'flow':
-        newContent = JSON.stringify({ type: 'flow', steps: fields.flowSteps });
-        break;
-      default: newContent = fields.text || fields.url;
-    }
-    setContent(newContent || '');
+    setContent(buildQrPayload(qrType, fields) || '');
   }, [fields, qrType]);
 
   const handleAISuggest = async () => {
