@@ -71,7 +71,7 @@ The app ships with a `vercel.json`. Connect the repo to Vercel, set the same env
 - Push notifications need Firebase Cloud Messaging configured.
 - The Python analytics service under `api/python` is optional. The app works without it.
 - Export is PNG, SVG and PDF. Print layouts are basic.
-- There is no automated test suite yet. `npm run lint` (typecheck) and `npm run build` are the checks for now. Tests are welcome, see CONTRIBUTING.md.
+- The test suite in `test/` covers the permission rules and the small helpers in `src/lib`. Run it with `npm test`.
 
 ## Contributing
 
