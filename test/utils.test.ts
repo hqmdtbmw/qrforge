@@ -27,6 +27,28 @@ test("formatDate reads like a person wrote it", () => {
   assert.equal(formatDate("2026-11-26"), "Nov 26, 2026");
 });
 
+test("crc16 matches known values for real payloads", () => {
+  // A WiFi QR payload and an EMVCo-style payment payload, checked against
+  // the same CRC-16/CCITT-FALSE algorithm.
+  assert.equal(crc16("a"), "9D77");
+  assert.equal(crc16("WIFI:T:WPA;S:home-net;P:s3cret;;"), "A401");
+  assert.equal(crc16("00020101021229300012D156000000000510A93FO7"), "19EA");
+});
+
+test("formatDate copes with a date string that has a time in it", () => {
+  assert.equal(formatDate("2026-11-26T10:30:00"), "Nov 26, 2026");
+});
+
+test("formatDate says so plainly when the date is not a date", () => {
+  assert.equal(formatDate("not a date"), "Invalid Date");
+});
+
+test("cn with nothing in it gives back nothing", () => {
+  assert.equal(cn(), "");
+  assert.equal(cn(undefined, false, null), "");
+  assert.equal(cn("m-2", "m-4"), "m-4");
+});
+
 test("cn merges classes and lets the later one win", () => {
   assert.equal(cn("px-2", "px-4"), "px-4");
   assert.equal(cn("text-red-500", false && "hidden", "font-bold"), "text-red-500 font-bold");

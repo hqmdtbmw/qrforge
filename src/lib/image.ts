@@ -1,3 +1,27 @@
+// Work out the size an image ends up at after fitting inside maxWidth x maxHeight.
+// Kept separate from optimizeImage so the maths can be tested without a canvas.
+// The long side is scaled down to its limit and the other side follows, so the
+// aspect ratio never changes. Images that already fit come back untouched.
+export function computeImageSize(
+  width: number,
+  height: number,
+  maxWidth: number = 800,
+  maxHeight: number = 800
+): { width: number; height: number } {
+  if (width > height) {
+    if (width > maxWidth) {
+      height *= maxWidth / width;
+      width = maxWidth;
+    }
+  } else {
+    if (height > maxHeight) {
+      width *= maxHeight / height;
+      height = maxHeight;
+    }
+  }
+  return { width, height };
+}
+
 /**
  * Optimizes an image by resizing and compressing it.
  * @param file The image file to optimize.
@@ -21,20 +45,7 @@ export async function optimizeImage(
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > maxWidth) {
-              height *= maxWidth / width;
-              width = maxWidth;
-            }
-          } else {
-            if (height > maxHeight) {
-              width *= maxHeight / height;
-              height = maxHeight;
-            }
-          }
+          const { width, height } = computeImageSize(img.width, img.height, maxWidth, maxHeight);
 
           canvas.width = width;
           canvas.height = height;

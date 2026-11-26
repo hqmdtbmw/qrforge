@@ -1,5 +1,17 @@
 import { UAParser } from 'ua-parser-js';
 
+// The hash behind getDeviceId, kept separate so it can be tested on its own.
+// Same input always gives the same short base36 string.
+export function hashFingerprint(fingerprint: string): string {
+  let hash = 0;
+  for (let i = 0; i < fingerprint.length; i++) {
+    const char = fingerprint.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(36);
+}
+
 export async function getDeviceId(): Promise<string> {
   const parser = new UAParser();
   const result = parser.getResult();
@@ -24,16 +36,8 @@ export async function getDeviceId(): Promise<string> {
   ];
 
   const fingerprint = signals.join('|');
-  
-  // Simple hash function
-  let hash = 0;
-  for (let i = 0; i < fingerprint.length; i++) {
-    const char = fingerprint.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  
-  return Math.abs(hash).toString(36);
+
+  return hashFingerprint(fingerprint);
 }
 
 export function getPersistentDeviceId(): string {
