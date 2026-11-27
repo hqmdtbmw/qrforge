@@ -14,6 +14,7 @@ import rateLimit from "express-rate-limit";
 import cors from "cors";
 import { z } from "zod";
 import http from "http";
+import { buildContentPrompt, buildDesignPrompt, parseContentSuggestions, parseDesignSuggestions } from "./src/lib/aiSuggestions";
 
 dotenv.config();
 
@@ -467,8 +468,10 @@ app.post("/api/ai/generate-design", verifyProStatus, async (req, res) => {
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid prompt" });
   try {
-    const result = await genAI.models.generateContent({ model: "gemini-1.5-flash", contents: `Generate 3 QR designs for: "${parsed.data.prompt}". Return JSON array.`, config: { responseMimeType: "application/json" } });
-    res.json(JSON.parse(result.text));
+    const result = await genAI.models.generateContent({ model: "gemini-1.5-flash", contents: buildDesignPrompt(parsed.data.prompt), config: { responseMimeType: "application/json" } });
+    const suggestions = parseDesignSuggestions(result.text || "");
+    if (!suggestions) throw new Error("Model returned no usable designs");
+    res.json(suggestions);
   } catch (error) { res.status(500).json({ error: "Failed" }); }
 });
 
@@ -479,10 +482,12 @@ app.post("/api/ai/suggest-content", verifyProStatus, async (req, res) => {
   try {
     const result = await genAI.models.generateContent({
       model: "gemini-1.5-flash",
-      contents: `Suggest optimized content for a QR code of type "${parsed.data.type}" with context: "${parsed.data.context}". Return a JSON object with a 'suggestions' array of 3 content strings.`,
+      contents: buildContentPrompt(parsed.data.type, parsed.data.context),
       config: { responseMimeType: "application/json" }
     });
-    res.json(JSON.parse(result.text));
+    const suggestions = parseContentSuggestions(result.text || "");
+    if (!suggestions) throw new Error("Model returned no usable suggestions");
+    res.json(suggestions);
   } catch (error) { res.status(500).json({ error: "Failed to generate suggestions" }); }
 });
 
