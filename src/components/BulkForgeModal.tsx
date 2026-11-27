@@ -10,7 +10,7 @@ import { createQRCode } from '../services/db';
 import { useToast } from './Toast';
 import { nanoid } from 'nanoid';
 import { cn } from '../lib/utils';
-import { MAX_BULK_ROWS, parseBulkCsv, parseBulkText, type BulkParseResult } from '../lib/bulk';
+import { MAX_BULK_ROWS, namesByContent, parseBulkCsv, parseBulkText } from '../lib/bulk';
 
 interface BulkForgeModalProps {
   isOpen: boolean;
@@ -33,9 +33,11 @@ export const BulkForgeModal: React.FC<BulkForgeModalProps> = ({
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // The parsed CSV, kept so the names from its second column survive
-  // to the forge step. Cleared as soon as the text is edited by hand.
-  const [csvParsed, setCsvParsed] = useState<BulkParseResult | null>(null);
+  // Names remembered by content, from a CSV upload's second column.
+  // The list is re-parsed from the text on every forge, so a name
+  // stays with its line when the text is edited or reordered, and a
+  // deleted line takes its name with it.
+  const [knownNames, setKnownNames] = useState<Map<string, string>>(new Map());
 
   // A CSV file fills the text list with its first column, so the user
   // can look it over and edit it before forging, same as pasted text.
@@ -48,7 +50,7 @@ export const BulkForgeModal: React.FC<BulkForgeModalProps> = ({
         return;
       }
       setTextInput(parsed.rows.map((row) => row.content).join('\n'));
-      setCsvParsed(parsed);
+      setKnownNames(namesByContent(parsed.rows));
       setInputMode('text');
       toast(`Loaded ${parsed.rows.length} rows from ${file.name}`, 'success');
     } catch (err) {
@@ -64,7 +66,7 @@ export const BulkForgeModal: React.FC<BulkForgeModalProps> = ({
 
     if (!user) return;
 
-    const parsed = csvParsed ?? parseBulkText(textInput);
+    const parsed = parseBulkText(textInput, knownNames);
     if (parsed.rows.length === 0) {
       toast('Please enter some content to forge', 'error');
       return;
@@ -195,9 +197,8 @@ export const BulkForgeModal: React.FC<BulkForgeModalProps> = ({
                   value={textInput}
                   onChange={(e) => {
                     setTextInput(e.target.value);
-                    setCsvParsed(null);
                   }}
-                  placeholder="https://google.com&#10;https://apple.com&#10;My Secret Message"
+                  placeholder="https://google.com&#10;https://apple.com, My Shop&#10;My Secret Message"
                   className="w-full h-48 px-4 py-3 rounded-2xl border border-border focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all bg-secondary/10 text-xs font-medium resize-none custom-scrollbar"
                 />
               </div>
@@ -210,7 +211,7 @@ export const BulkForgeModal: React.FC<BulkForgeModalProps> = ({
                 </div>
                 <div>
                   <p className="text-xs font-black uppercase tracking-tight">Upload CSV File</p>
-                  <p className="text-[9px] text-muted-foreground font-medium">First column should contain the content</p>
+                  <p className="text-[9px] text-muted-foreground font-medium">First column is the content, second column is the name</p>
                 </div>
                 <input
                   ref={fileInputRef}

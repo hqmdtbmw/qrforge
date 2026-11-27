@@ -7,8 +7,10 @@ export type BulkQrType = 'link' | 'text';
 export interface BulkRow {
   content: string;
   qrType: BulkQrType;
-  // Only CSV rows carry a name, from the second column. Pasted text
-  // rows get their name from the modal instead, "Bulk QR 1" and so on.
+  // A name for the QR, when one is known. It comes from a CSV second
+  // column, from a name typed after a comma on the line itself, or
+  // from a name remembered for that content from an earlier upload.
+  // Rows with no name get "Bulk QR N" from the modal instead.
   name?: string;
 }
 
@@ -72,9 +74,55 @@ function collectRows(
 
 // The text list: one QR per line, blank lines ignored, Windows line
 // endings handled, repeats forged only once.
-export function parseBulkText(input: string): BulkParseResult {
+//
+// A line can carry its own name after a comma, the same way a CSV row
+// does: "https://example.com, My Site". I only split on the comma when
+// the part before it is a link, so a plain text line like
+// "hello, world" stays one piece of text and is not chopped in half.
+//
+// knownNames remembers names by content, usually from a CSV upload.
+// The modal keeps that map and hands it back here on every edit, so a
+// name stays with its line when the list is reordered, and a deleted
+// line takes its name with it. A name typed on the line itself wins
+// over a remembered one.
+export function parseBulkText(
+  input: string,
+  knownNames?: ReadonlyMap<string, string>,
+): BulkParseResult {
   const lines = input.split(/\r?\n/);
-  return collectRows(lines.map((content) => ({ content })));
+  return collectRows(
+    lines.map((line) => {
+      const split = splitInlineName(line);
+      const content = split.content.trim();
+      return {
+        content,
+        name: split.name ?? knownNames?.get(content),
+      };
+    }),
+  );
+}
+
+// Split "content, name" on the first comma, but only when the content
+// part is a link. Anything else keeps the whole line as its content,
+// including a trailing comma after a link with no name on it.
+function splitInlineName(line: string): { content: string; name?: string } {
+  const comma = line.indexOf(',');
+  if (comma === -1) return { content: line };
+  const before = line.slice(0, comma).trim();
+  if (!before || classifyBulkContent(before) !== 'link') return { content: line };
+  const after = line.slice(comma + 1).trim();
+  return { content: before, ...(after ? { name: after } : {}) };
+}
+
+// Build the remembered-names map from parsed rows, so the modal can
+// keep names from a CSV upload and hand them back when the list is
+// edited. Only rows that actually have a name go in.
+export function namesByContent(rows: BulkRow[]): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const row of rows) {
+    if (row.name) names.set(row.content, row.name);
+  }
+  return names;
 }
 
 // One CSV record per line, split into fields. A field in double quotes

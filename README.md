@@ -9,7 +9,7 @@ I built this because every QR tool I tried was either ugly, locked behind a payw
 - Styled QR codes: colours, shapes, logos, frames, and templates. Export as PNG, SVG or PDF.
 - Dynamic QR codes: change the destination any time after printing, without reprinting.
 - Every kind of code: URL, WiFi, vCard, text, email, SMS, app store links, and more.
-- Bulk creation: upload a list, get a zip of codes.
+- Bulk creation: upload a list, get a zip of codes. A CSV second column names each code, and so does typing a name after a comma on a pasted line, like `https://example.com, My Site`. The names stick to their lines even if you edit the list or move lines around.
 - Scan analytics: scans over time, countries, devices, browsers, and campaigns.
 - Social Studio: a shareable profile page with your links and a vCard download.
 - Teams and organisations: roles, shared folders, and shared analytics.
@@ -71,7 +71,7 @@ The app ships with a `vercel.json`. Connect the repo to Vercel, set the same env
 - Push notifications need Firebase Cloud Messaging configured.
 - The Python analytics service under `api/python` is optional. The app works without it.
 - Export is PNG, SVG and PDF. Print layouts are basic.
-- The test suite in `test/` covers the permission rules, the fingerprint hash, the image sizing maths, the logo checks, type, size, dimensions and shape, including reading an SVG logo's size from the file itself, from its width and height or its viewBox, instead of trusting the size the browser guesses when it loads one, the small helpers in `src/lib`, the AI prompt building and response checks, the bulk forge list, pasted lines and CSV files, which rows are links and which are plain text, repeats, blank lines and the 500 row cap, and the QR payloads: every type from plain text and WiFi to vCard and the bank codes, SEPA, UPI, Pix, PayNow and PromptPay, with the CRC checked. Run it with `npm test`. The bits that need a browser or a network call, like the canvas work in `optimizeImage` and the live Gemini call itself, are not covered yet.
+- The test suite in `test/` covers the permission rules, the fingerprint hash, the image sizing maths, the logo checks, type, size, dimensions and shape, including reading an SVG logo's size from the file itself, from its width and height or its viewBox, instead of trusting the size the browser guesses when it loads one, the small helpers in `src/lib`, the AI prompt building and response checks, the bulk forge list, pasted lines and CSV files, which rows are links and which are plain text, repeats, blank lines and the 500 row cap, and how names from a CSV or typed after a comma stay with their line when the list is edited or reordered, and the QR payloads: every type from plain text and WiFi to vCard and the bank codes, SEPA, UPI, Pix, PayNow and PromptPay, with the CRC checked. Run it with `npm test`. The bits that need a browser or a network call, like the canvas work in `optimizeImage` and the live Gemini call itself, are not covered yet.
 
 ## Contributing
 

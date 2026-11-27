@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   MAX_BULK_ROWS,
   classifyBulkContent,
+  namesByContent,
   parseBulkCsv,
   parseBulkText,
 } from "../src/lib/bulk.ts";
@@ -104,4 +105,79 @@ test("parseBulkCsv handles Windows endings and repeats like the text list", () =
   const out = parseBulkCsv("https://a.com\r\nhttps://a.com\r\nhttps://b.com\r\n");
   assert.deepEqual(out.rows.map((r) => r.content), ["https://a.com", "https://b.com"]);
   assert.equal(out.duplicates, 1);
+});
+
+test("a pasted link line can carry its name after a comma", () => {
+  const out = parseBulkText("https://example.com, My Site\nhttps://a.com\nhello");
+  assert.equal(out.rows[0].name, "My Site");
+  assert.equal(out.rows[0].content, "https://example.com");
+  assert.equal(out.rows[1].name, undefined);
+  assert.equal(out.rows[2].name, undefined);
+});
+
+test("a plain text line with a comma is not chopped into content and name", () => {
+  const out = parseBulkText("hello, world\nbuy milk, eggs and bread");
+  assert.deepEqual(out.rows.map((r) => r.content), ["hello, world", "buy milk, eggs and bread"]);
+  assert.equal(out.rows[0].name, undefined);
+  assert.equal(out.rows[1].name, undefined);
+});
+
+test("names remembered from a CSV survive an edit to the list", () => {
+  const uploaded = parseBulkCsv("https://a.com,Shop A\nhttps://b.com,Shop B");
+  const known = namesByContent(uploaded.rows);
+  // The user edits the list: adds a line at the top and a blank line.
+  const out = parseBulkText("https://new.com\n\nhttps://a.com\nhttps://b.com", known);
+  assert.deepEqual(out.rows.map((r) => r.content), ["https://new.com", "https://a.com", "https://b.com"]);
+  assert.equal(out.rows[0].name, undefined);
+  assert.equal(out.rows[1].name, "Shop A");
+  assert.equal(out.rows[2].name, "Shop B");
+});
+
+test("a remembered name follows its line when the list is reordered", () => {
+  const known = new Map([
+    ["https://a.com", "Shop A"],
+    ["https://b.com", "Shop B"],
+  ]);
+  const out = parseBulkText("https://b.com\nhttps://a.com", known);
+  assert.equal(out.rows[0].name, "Shop B");
+  assert.equal(out.rows[1].name, "Shop A");
+});
+
+test("deleting a line drops its remembered name, it does not move to the next row", () => {
+  const known = new Map([
+    ["https://a.com", "Shop A"],
+    ["https://b.com", "Shop B"],
+  ]);
+  const out = parseBulkText("https://b.com", known);
+  assert.equal(out.rows.length, 1);
+  assert.equal(out.rows[0].name, "Shop B");
+});
+
+test("a name typed on the line wins over a remembered one", () => {
+  const known = new Map([["https://a.com", "Old name"]]);
+  const out = parseBulkText("https://a.com, New name", known);
+  assert.equal(out.rows[0].name, "New name");
+});
+
+test("namesByContent only keeps rows that have a name", () => {
+  const parsed = parseBulkCsv("https://a.com,Shop A\nhttps://b.com,\nhello");
+  const known = namesByContent(parsed.rows);
+  assert.equal(known.size, 1);
+  assert.equal(known.get("https://a.com"), "Shop A");
+});
+
+test("a repeated line with a name is still forged once, under the first name", () => {
+  const out = parseBulkText("https://a.com, Shop A\nhttps://a.com\nhttps://b.com, Shop B");
+  assert.deepEqual(out.rows.map((r) => r.content), ["https://a.com", "https://b.com"]);
+  assert.equal(out.rows[0].name, "Shop A");
+  assert.equal(out.rows[1].name, "Shop B");
+  assert.equal(out.duplicates, 1);
+});
+
+test("the cap still holds when lines carry names", () => {
+  const input = Array.from({ length: MAX_BULK_ROWS + 5 }, (_, i) => `https://x.com/${i}, Site ${i}`).join("\n");
+  const out = parseBulkText(input);
+  assert.equal(out.rows.length, MAX_BULK_ROWS);
+  assert.equal(out.truncated, true);
+  assert.equal(out.rows[0].name, "Site 0");
 });
