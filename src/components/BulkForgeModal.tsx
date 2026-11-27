@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Upload, FileText, CheckCircle2, Loader2, 
@@ -10,6 +10,7 @@ import { createQRCode } from '../services/db';
 import { useToast } from './Toast';
 import { nanoid } from 'nanoid';
 import { cn } from '../lib/utils';
+import { MAX_BULK_ROWS, parseBulkCsv, parseBulkText, type BulkParseResult } from '../lib/bulk';
 
 interface BulkForgeModalProps {
   isOpen: boolean;
@@ -31,6 +32,29 @@ export const BulkForgeModal: React.FC<BulkForgeModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // The parsed CSV, kept so the names from its second column survive
+  // to the forge step. Cleared as soon as the text is edited by hand.
+  const [csvParsed, setCsvParsed] = useState<BulkParseResult | null>(null);
+
+  // A CSV file fills the text list with its first column, so the user
+  // can look it over and edit it before forging, same as pasted text.
+  const handleCsvUpload = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const parsed = parseBulkCsv(await file.text());
+      if (parsed.rows.length === 0) {
+        toast('That file had no rows I could forge', 'error');
+        return;
+      }
+      setTextInput(parsed.rows.map((row) => row.content).join('\n'));
+      setCsvParsed(parsed);
+      setInputMode('text');
+      toast(`Loaded ${parsed.rows.length} rows from ${file.name}`, 'success');
+    } catch (err) {
+      toast('Could not read that file', 'error');
+    }
+  };
 
   const handleBulkForge = async () => {
     if (!isPro) {
@@ -40,8 +64,8 @@ export const BulkForgeModal: React.FC<BulkForgeModalProps> = ({
 
     if (!user) return;
 
-    const lines = textInput.split('\n').filter(line => line.trim());
-    if (lines.length === 0) {
+    const parsed = csvParsed ?? parseBulkText(textInput);
+    if (parsed.rows.length === 0) {
       toast('Please enter some content to forge', 'error');
       return;
     }
@@ -51,21 +75,20 @@ export const BulkForgeModal: React.FC<BulkForgeModalProps> = ({
     setResults([]);
 
     const forged: any[] = [];
-    const total = lines.length;
+    const total = parsed.rows.length;
 
     for (let i = 0; i < total; i++) {
-      const line = lines[i].trim();
+      const row = parsed.rows[i];
+      const line = row.content;
       try {
-        const name = `Bulk QR ${i + 1}`;
-        const content = line;
-        const isUrl = line.startsWith('http');
-        const qrType = isUrl ? 'link' : 'text';
+        const name = row.name ?? `Bulk QR ${i + 1}`;
+        const isUrl = row.qrType === 'link';
         
         await createQRCode(user.uid, {
           name,
-          content,
+          content: line,
           type: 'static',
-          qrType,
+          qrType: isUrl ? 'link' : 'text',
           fields: isUrl ? { url: line } : { text: line },
           design: {
             fgColor: '#000000',
@@ -87,7 +110,9 @@ export const BulkForgeModal: React.FC<BulkForgeModalProps> = ({
 
     setResults(forged);
     setIsProcessing(false);
-    toast(`Successfully forged ${forged.filter(r => r.status === 'success').length} QR codes!`, 'success');
+    const forgedCount = forged.filter(r => r.status === 'success').length;
+    const capped = parsed.truncated ? ` Only the first ${MAX_BULK_ROWS} rows were forged.` : '';
+    toast(`Successfully forged ${forgedCount} QR codes!${capped}`, 'success');
   };
 
   if (!isOpen) return null;
@@ -168,13 +193,18 @@ export const BulkForgeModal: React.FC<BulkForgeModalProps> = ({
                 <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground px-1">Paste URLs or Text (One per line)</label>
                 <textarea 
                   value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
+                  onChange={(e) => {
+                    setTextInput(e.target.value);
+                    setCsvParsed(null);
+                  }}
                   placeholder="https://google.com&#10;https://apple.com&#10;My Secret Message"
                   className="w-full h-48 px-4 py-3 rounded-2xl border border-border focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all bg-secondary/10 text-xs font-medium resize-none custom-scrollbar"
                 />
               </div>
             ) : (
-              <div className="h-48 border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center p-6 text-center space-y-3 hover:border-primary/30 transition-all group cursor-pointer">
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="h-48 border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center p-6 text-center space-y-3 hover:border-primary/30 transition-all group cursor-pointer">
                 <div className="w-12 h-12 bg-secondary rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Upload className="w-6 h-6 text-muted-foreground" />
                 </div>
@@ -182,7 +212,16 @@ export const BulkForgeModal: React.FC<BulkForgeModalProps> = ({
                   <p className="text-xs font-black uppercase tracking-tight">Upload CSV File</p>
                   <p className="text-[9px] text-muted-foreground font-medium">First column should contain the content</p>
                 </div>
-                <input type="file" className="hidden" accept=".csv" />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".csv"
+                  onChange={(e) => {
+                    handleCsvUpload(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
               </div>
             )}
           </div>
