@@ -244,6 +244,10 @@ export const CreateQRModal: React.FC<CreateQRModalProps> = ({ isOpen, onClose, i
       bankBic: '',
       bankUpiId: '',
       bankPixKey: '',
+      bankPaynowProxyType: '0',
+      bankPaynowProxy: '',
+      bankPromptpayProxyType: '01',
+      bankPromptpayProxy: '',
       bankReference: '',
       bankCity: 'CITY',
       // Menu Fields
@@ -2328,6 +2332,84 @@ export const CreateQRModal: React.FC<CreateQRModalProps> = ({ isOpen, onClose, i
                             value={fields.bankCity}
                             onChange={(e) => setFields({ ...fields, bankCity: e.target.value })}
                             placeholder="City (e.g. SAO PAULO)"
+                            className="w-full px-5 py-4 rounded-2xl border border-border focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none transition-all bg-card font-bold text-xs"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {fields.bankStandard === 'paynow' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Proxy Type</label>
+                          <NativeSelect
+                            label=""
+                            value={fields.bankPaynowProxyType}
+                            onChange={(val) => setFields({ ...fields, bankPaynowProxyType: val })}
+                            options={[
+                              { id: '0', name: 'Mobile Number', icon: <Smartphone className="w-4 h-4" /> },
+                              { id: '1', name: 'NRIC / FIN', icon: <User className="w-4 h-4" /> },
+                              { id: '2', name: 'UEN', icon: <Landmark className="w-4 h-4" /> },
+                              { id: '3', name: 'Virtual Payment Address', icon: <Globe className="w-4 h-4" /> },
+                            ]}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">PayNow Proxy</label>
+                          <input
+                            type="text"
+                            value={fields.bankPaynowProxy}
+                            onChange={(e) => setFields({ ...fields, bankPaynowProxy: e.target.value })}
+                            placeholder="Mobile, NRIC, UEN or VPA"
+                            className="w-full px-5 py-4 rounded-2xl border border-border focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none transition-all bg-card font-bold text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">City</label>
+                          <input
+                            type="text"
+                            value={fields.bankCity}
+                            onChange={(e) => setFields({ ...fields, bankCity: e.target.value })}
+                            placeholder="City (e.g. SINGAPORE)"
+                            className="w-full px-5 py-4 rounded-2xl border border-border focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none transition-all bg-card font-bold text-xs"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {fields.bankStandard === 'promptpay' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Proxy Type</label>
+                          <NativeSelect
+                            label=""
+                            value={fields.bankPromptpayProxyType}
+                            onChange={(val) => setFields({ ...fields, bankPromptpayProxyType: val })}
+                            options={[
+                              { id: '01', name: 'Mobile Number', icon: <Smartphone className="w-4 h-4" /> },
+                              { id: '02', name: 'National ID', icon: <User className="w-4 h-4" /> },
+                              { id: '03', name: 'e-Wallet ID', icon: <CreditCard className="w-4 h-4" /> },
+                              { id: '04', name: 'Bank Account', icon: <Landmark className="w-4 h-4" /> },
+                            ]}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">PromptPay Proxy</label>
+                          <input
+                            type="text"
+                            value={fields.bankPromptpayProxy}
+                            onChange={(e) => setFields({ ...fields, bankPromptpayProxy: e.target.value })}
+                            placeholder="Mobile, National ID or e-Wallet ID"
+                            className="w-full px-5 py-4 rounded-2xl border border-border focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none transition-all bg-card font-bold text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">City</label>
+                          <input
+                            type="text"
+                            value={fields.bankCity}
+                            onChange={(e) => setFields({ ...fields, bankCity: e.target.value })}
+                            placeholder="City (e.g. BANGKOK)"
                             className="w-full px-5 py-4 rounded-2xl border border-border focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none transition-all bg-card font-bold text-xs"
                           />
                         </div>

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildQrPayload, buildPixPayload } from "../src/lib/qrPayload.ts";
+import { buildPaynowPayload, buildPromptpayPayload, buildQrPayload, buildPixPayload } from "../src/lib/qrPayload.ts";
 import { crc16 } from "../src/lib/utils.ts";
 
 test("text and link pass their field straight through", () => {
@@ -194,6 +194,91 @@ test("bank nqr uses a supplied payload, otherwise builds one", () => {
     buildQrPayload("bank", { bankStandard: "nqr", bankAccount: "0123456789", bankName: "GTBank", amount: "5000" }),
     "nqr://pay?acc=0123456789&bank=GTBank&name=GTBank&am=5000"
   );
+});
+
+test("bank paynow builds a full EMVCo payload with a valid crc", () => {
+  const out = buildPaynowPayload({
+    bankPaynowProxyType: "0",
+    bankPaynowProxy: "+6581234567",
+    bankName: "Daniel Attah",
+    bankCity: "Singapore",
+    amount: "25.50",
+  });
+  assert.equal(
+    out,
+    "00020101021126380009SG.PAYNOW010100211+658123456703010520400005303702540525.505802SG5912DANIEL ATTAH6009SINGAPORE63042351"
+  );
+  // The last four characters are the CRC16 of everything before them.
+  assert.equal(out.slice(-4), crc16(out.slice(0, -4)));
+  assert.equal(buildQrPayload("bank", {
+    bankStandard: "paynow",
+    bankPaynowProxy: "+6581234567",
+    bankName: "Daniel Attah",
+    bankCity: "Singapore",
+    amount: "25.50",
+  }), out);
+});
+
+test("bank paynow takes a UEN proxy and leaves the amount out when it is zero", () => {
+  const out = buildPaynowPayload({
+    bankPaynowProxyType: "2",
+    bankPaynowProxy: "201234567A",
+    bankName: "Shop",
+    bankCity: "Singapore",
+    amount: "",
+  });
+  assert.ok(out.includes("0101202"), "proxy type 2 for a UEN");
+  assert.ok(out.includes("0210201234567A"), "the UEN value itself");
+  assert.ok(!out.includes("54"), "no 54 field for a zero amount");
+  assert.equal(out.slice(-4), crc16(out.slice(0, -4)));
+});
+
+test("bank promptpay builds a full EMVCo payload with a valid crc", () => {
+  const out = buildPromptpayPayload({
+    bankPromptpayProxyType: "01",
+    bankPromptpayProxy: "0812345678",
+    bankName: "Daniel Attah",
+    bankCity: "Bangkok",
+    amount: "100.00",
+  });
+  assert.equal(
+    out,
+    "00020101021129430016A000000677010111010201021300668123456785204000053037645406100.005802TH5912DANIEL ATTAH6007BANGKOK6304306A"
+  );
+  assert.equal(out.slice(-4), crc16(out.slice(0, -4)));
+  assert.equal(buildQrPayload("bank", {
+    bankStandard: "promptpay",
+    bankPromptpayProxy: "0812345678",
+    bankName: "Daniel Attah",
+    bankCity: "Bangkok",
+    amount: "100.00",
+  }), out);
+});
+
+test("bank promptpay turns a mobile number into the 13 digit proxy", () => {
+  const out = buildPromptpayPayload({
+    bankPromptpayProxyType: "01",
+    bankPromptpayProxy: "081 234 5678",
+    bankName: "Shop",
+    bankCity: "Bangkok",
+    amount: "",
+  });
+  assert.ok(out.includes("02130066812345678"), "0066 plus the number without its leading zero");
+  assert.ok(!out.includes("54"), "no 54 field for a zero amount");
+  assert.equal(out.slice(-4), crc16(out.slice(0, -4)));
+});
+
+test("bank promptpay keeps a national id proxy as it is", () => {
+  const out = buildPromptpayPayload({
+    bankPromptpayProxyType: "02",
+    bankPromptpayProxy: "1234567890123",
+    bankName: "Shop",
+    bankCity: "Bangkok",
+    amount: "",
+  });
+  assert.ok(out.includes("010202"), "proxy type 02 for a national id");
+  assert.ok(out.includes("02131234567890123"), "the 13 digit id itself");
+  assert.equal(out.slice(-4), crc16(out.slice(0, -4)));
 });
 
 test("bank with an unknown standard falls back to plain text", () => {

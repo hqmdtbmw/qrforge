@@ -41,6 +41,10 @@ export interface QrFields {
   bankBic?: string;
   bankUpiId?: string;
   bankPixKey?: string;
+  bankPaynowProxyType?: string;
+  bankPaynowProxy?: string;
+  bankPromptpayProxyType?: string;
+  bankPromptpayProxy?: string;
   bankReference?: string;
   bankCity?: string;
   nqrPayload?: string;
@@ -74,6 +78,69 @@ export function buildPixPayload(fields: QrFields): string {
   payload += "59" + name.length.toString().padStart(2, "0") + name;
   payload += "60" + city.length.toString().padStart(2, "0") + city;
   payload += "62070503***";
+  payload += "6304";
+
+  return payload + crc16(payload);
+}
+
+// PayNow static QR code (Singapore, EMVCo format like Pix). Field 26 holds
+// the proxy: 00 is the SG.PAYNOW marker, 01 is the proxy type (0 mobile,
+// 1 NRIC/FIN, 2 UEN, 3 virtual payment address), 02 is the proxy value,
+// and 03 says the amount is fixed. 53 is the SGD currency code 702.
+export function buildPaynowPayload(fields: QrFields): string {
+  const proxy = (fields.bankPaynowProxy || "").replace(/\s+/g, "");
+  const proxyType = fields.bankPaynowProxyType || "0";
+  const name = (fields.bankName || "QRForge").substring(0, 25).toUpperCase();
+  const city = (fields.bankCity || "SINGAPORE").substring(0, 15).toUpperCase();
+  const amount = fields.amount ? parseFloat(fields.amount).toFixed(2) : "0.00";
+
+  const accountInfo =
+    "0009SG.PAYNOW" +
+    "0101" + proxyType +
+    "02" + proxy.length.toString().padStart(2, "0") + proxy +
+    "03010";
+  let payload = "000201010211";
+  payload += "26" + accountInfo.length.toString().padStart(2, "0") + accountInfo;
+  payload += "52040000";
+  payload += "5303702";
+  if (parseFloat(amount) > 0) {
+    payload += "54" + amount.length.toString().padStart(2, "0") + amount;
+  }
+  payload += "5802SG";
+  payload += "59" + name.length.toString().padStart(2, "0") + name;
+  payload += "60" + city.length.toString().padStart(2, "0") + city;
+  payload += "6304";
+
+  return payload + crc16(payload);
+}
+
+// PromptPay static QR code (Thailand, EMVCo format like Pix). Field 29
+// holds the proxy: 00 is the PromptPay application id, 01 is the proxy
+// type (01 mobile, 02 national id, 03 e-wallet, 04 bank account), and 02
+// is the proxy value. A mobile number is stored as 0066 plus the number
+// without its leading zero, 13 digits in total. 53 is the THB code 764.
+export function buildPromptpayPayload(fields: QrFields): string {
+  const digits = (fields.bankPromptpayProxy || "").replace(/\D/g, "");
+  const proxyType = fields.bankPromptpayProxyType || "01";
+  const proxy = proxyType === "01" ? "0066" + digits.replace(/^0/, "") : digits;
+  const name = (fields.bankName || "QRForge").substring(0, 25).toUpperCase();
+  const city = (fields.bankCity || "BANGKOK").substring(0, 15).toUpperCase();
+  const amount = fields.amount ? parseFloat(fields.amount).toFixed(2) : "0.00";
+
+  const accountInfo =
+    "0016A000000677010111" +
+    "0102" + proxyType +
+    "02" + proxy.length.toString().padStart(2, "0") + proxy;
+  let payload = "000201010211";
+  payload += "29" + accountInfo.length.toString().padStart(2, "0") + accountInfo;
+  payload += "52040000";
+  payload += "5303764";
+  if (parseFloat(amount) > 0) {
+    payload += "54" + amount.length.toString().padStart(2, "0") + amount;
+  }
+  payload += "5802TH";
+  payload += "59" + name.length.toString().padStart(2, "0") + name;
+  payload += "60" + city.length.toString().padStart(2, "0") + city;
   payload += "6304";
 
   return payload + crc16(payload);
@@ -121,6 +188,12 @@ export function buildQrPayload(qrType: QRType, fields: QrFields): string {
       }
       if (fields.bankStandard === "pix") {
         return buildPixPayload(fields);
+      }
+      if (fields.bankStandard === "paynow") {
+        return buildPaynowPayload(fields);
+      }
+      if (fields.bankStandard === "promptpay") {
+        return buildPromptpayPayload(fields);
       }
       if (fields.bankStandard === "nqr") {
         return fields.nqrPayload || `nqr://pay?acc=${fields.bankAccount || ""}&bank=${fields.bankName || ""}&name=${encodeURIComponent(fields.bankName || "")}&am=${fields.amount || ""}`;

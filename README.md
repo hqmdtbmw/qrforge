@@ -71,7 +71,7 @@ The app ships with a `vercel.json`. Connect the repo to Vercel, set the same env
 - Push notifications need Firebase Cloud Messaging configured.
 - The Python analytics service under `api/python` is optional. The app works without it.
 - Export is PNG, SVG and PDF. Print layouts are basic.
-- The test suite in `test/` covers the permission rules, the fingerprint hash, the image sizing maths, the logo type and size checks, the small helpers in `src/lib`, and the QR payloads: every type from plain text and WiFi to vCard and the Pix bank code, with the CRC checked. Run it with `npm test`. The bits that need a browser or a network call, like the canvas work in `optimizeImage` and the Gemini calls, are not covered yet.
+- The test suite in `test/` covers the permission rules, the fingerprint hash, the image sizing maths, the logo type and size checks, the small helpers in `src/lib`, and the QR payloads: every type from plain text and WiFi to vCard and the bank codes, SEPA, UPI, Pix, PayNow and PromptPay, with the CRC checked. Run it with `npm test`. The bits that need a browser or a network call, like the canvas work in `optimizeImage` and the Gemini calls, are not covered yet.
 
 ## Contributing
 
