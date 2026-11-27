@@ -21,6 +21,28 @@ export interface LogoValidationResult {
   height?: number;
 }
 
+// The size and shape checks for a logo, kept separate from validateLogo so
+// they can be tested without a browser. A logo has to be 2048px or smaller
+// on each side and roughly square, between a 1:2 and a 2:1 ratio. Anything
+// that is not a real size at all, like zero or a negative number, is
+// treated the same as an image that failed to load.
+export function checkLogoDimensions(width: number, height: number): LogoValidationResult {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return { valid: false, error: 'Failed to load image.', width, height };
+  }
+
+  if (width > 2048 || height > 2048) {
+    return { valid: false, error: 'Dimensions too large. Maximum is 2048x2048px.', width, height };
+  }
+
+  const aspectRatio = width / height;
+  if (aspectRatio < 0.5 || aspectRatio > 2.0) {
+    return { valid: false, error: 'Invalid aspect ratio. Logo should be approximately square.', width, height };
+  }
+
+  return { valid: true, width, height };
+}
+
 export async function validateLogo(file: File): Promise<LogoValidationResult> {
   // Check file type
   const allowedTypes = ['image/png', 'image/jpeg', 'image/svg+xml'];
@@ -38,23 +60,7 @@ export async function validateLogo(file: File): Promise<LogoValidationResult> {
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        const width = img.width;
-        const height = img.height;
-        const aspectRatio = width / height;
-
-        // Check dimensions (max 2048x2048 for initial upload)
-        if (width > 2048 || height > 2048) {
-          resolve({ valid: false, error: 'Dimensions too large. Maximum is 2048x2048px.', width, height });
-          return;
-        }
-
-        // Check aspect ratio (must be square-ish, e.g., 0.5 to 2.0)
-        if (aspectRatio < 0.5 || aspectRatio > 2.0) {
-          resolve({ valid: false, error: 'Invalid aspect ratio. Logo should be approximately square.', width, height });
-          return;
-        }
-
-        resolve({ valid: true, width, height });
+        resolve(checkLogoDimensions(img.width, img.height));
       };
       img.onerror = () => {
         resolve({ valid: false, error: 'Failed to load image.' });
