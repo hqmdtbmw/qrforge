@@ -146,6 +146,35 @@ export function buildPromptpayPayload(fields: QrFields): string {
   return payload + crc16(payload);
 }
 
+// A WiFi network name or password can hold the very characters that
+// split the WIFI payload apart, a semicolon ends a field and a colon
+// ends the type, so they have to be escaped with a backslash. Without
+// this a password like "p;ss" scans as a password of "p" and the rest
+// of the code is garbage the phone ignores.
+export function escapeWifiValue(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/:/g, "\\:")
+    .replace(/"/g, '\\"');
+}
+
+// vCard and iCalendar text values use the same escaping: a backslash
+// first, then a real line break becomes the two characters backslash
+// and n, then commas and semicolons, which are field separators in
+// both formats. Without this an org like "HeyTek, Ltd" or an address
+// with a comma in it breaks the contact or the event when it is read
+// back. A colon needs no escaping here.
+export function escapeVcardValue(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\r\n?/g, "\\n")
+    .replace(/\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+
 export function buildQrPayload(qrType: QRType, fields: QrFields): string {
   switch (qrType) {
     case "text":
@@ -158,8 +187,16 @@ export function buildQrPayload(qrType: QRType, fields: QrFields): string {
       return `SMSTO:${fields.phone || ""}:${fields.message || ""}`;
     case "email":
       return `mailto:${fields.email || ""}?subject=${encodeURIComponent(fields.subject || "")}&body=${encodeURIComponent(fields.body || "")}`;
-    case "wifi":
-      return `WIFI:T:${fields.encryption || ""};S:${fields.ssid || ""};P:${fields.password || ""};;`;
+    case "wifi": {
+      const encryption = fields.encryption || "";
+      const ssid = escapeWifiValue(fields.ssid || "");
+      const password = escapeWifiValue(fields.password || "");
+      // An open network has no password field at all. Sending an empty
+      // P: field is harmless on most phones, but leaving it out is what
+      // the format asks for.
+      const passPart = encryption.toLowerCase() === "nopass" ? "" : `P:${password};`;
+      return `WIFI:T:${encryption};S:${ssid};${passPart};`;
+    }
     case "whatsapp":
       return `https://wa.me/${fields.phone || ""}?text=${encodeURIComponent(fields.message || "")}`;
     case "instagram":
@@ -169,13 +206,13 @@ export function buildQrPayload(qrType: QRType, fields: QrFields): string {
     case "linkedin":
       return `https://linkedin.com/in/${fields.text || ""}`;
     case "vcard":
-      return `BEGIN:VCARD\\nVERSION:3.0\\nN:${fields.lastName || ""};${fields.firstName || ""}\\nORG:${fields.org || ""}\\nTITLE:${fields.jobTitle || fields.title || ""}\\nEMAIL:${fields.email || ""}\\nTEL:${fields.phone || ""}\\nURL:${fields.website || ""}\\nADR:;;${fields.address || ""}\\nNOTE:${fields.notes || ""}\\nEND:VCARD`;
+      return `BEGIN:VCARD\\nVERSION:3.0\\nN:${escapeVcardValue(fields.lastName || "")};${escapeVcardValue(fields.firstName || "")}\\nORG:${escapeVcardValue(fields.org || "")}\\nTITLE:${escapeVcardValue(fields.jobTitle || fields.title || "")}\\nEMAIL:${escapeVcardValue(fields.email || "")}\\nTEL:${escapeVcardValue(fields.phone || "")}\\nURL:${escapeVcardValue(fields.website || "")}\\nADR:;;${escapeVcardValue(fields.address || "")}\\nNOTE:${escapeVcardValue(fields.notes || "")}\\nEND:VCARD`;
     case "social":
       return JSON.stringify({ type: "social", profileName: fields.profileName, links: fields.socialLinks });
     case "file":
       return fields.fileUrl || "";
     case "event":
-      return `BEGIN:VEVENT\\nSUMMARY:${fields.eventTitle || ""}\\nLOCATION:${fields.location || ""}\\nDESCRIPTION:${fields.description || ""}\\nEND:VEVENT`;
+      return `BEGIN:VEVENT\\nSUMMARY:${escapeVcardValue(fields.eventTitle || "")}\\nLOCATION:${escapeVcardValue(fields.location || "")}\\nDESCRIPTION:${escapeVcardValue(fields.description || "")}\\nEND:VEVENT`;
     case "crypto":
       return `${(fields.currency || "BTC").toLowerCase()}:${fields.address || ""}?amount=${fields.amount || ""}`;
     case "bank": {

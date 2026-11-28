@@ -31,7 +31,43 @@ test("wifi uses the WIFI scheme with encryption, ssid and password", () => {
   );
   assert.equal(
     buildQrPayload("wifi", { encryption: "nopass", ssid: "open-net", password: "" }),
-    "WIFI:T:nopass;S:open-net;P:;;"
+    "WIFI:T:nopass;S:open-net;;"
+  );
+});
+
+test("wifi escapes the characters that would split the payload apart", () => {
+  assert.equal(
+    buildQrPayload("wifi", { encryption: "WPA", ssid: "my;net", password: "p:ss,word" }),
+    "WIFI:T:WPA;S:my\\;net;P:p\\:ss\\,word;;"
+  );
+  assert.equal(
+    buildQrPayload("wifi", { encryption: "WPA", ssid: 'my"net', password: "back\\slash" }),
+    'WIFI:T:WPA;S:my\\"net;P:back\\\\slash;;'
+  );
+});
+
+test("vcard escapes commas, semicolons and line breaks in its fields", () => {
+  const out = buildQrPayload("vcard", {
+    firstName: "Daniel",
+    lastName: "Attah",
+    org: "HeyTek, Ltd",
+    address: "12 Main Street; Benin City",
+    notes: "line one\nline two",
+  });
+  assert.ok(out.includes("ORG:HeyTek\\, Ltd"), "comma in the org is escaped");
+  assert.ok(out.includes("ADR:;;12 Main Street\\; Benin City"), "semicolon in the address is escaped");
+  assert.ok(out.includes("NOTE:line one\\nline two"), "line break in the notes becomes backslash-n");
+});
+
+test("vcard escapes a backslash before anything else", () => {
+  const out = buildQrPayload("vcard", { firstName: "A", lastName: "B", notes: "a\\b" });
+  assert.ok(out.includes("NOTE:a\\\\b"), "one backslash becomes two");
+});
+
+test("event escapes commas and semicolons in its fields", () => {
+  assert.equal(
+    buildQrPayload("event", { eventTitle: "Launch, Day 1", location: "Hall A; Lagos", description: "doors; open" }),
+    "BEGIN:VEVENT\\nSUMMARY:Launch\\, Day 1\\nLOCATION:Hall A\\; Lagos\\nDESCRIPTION:doors\\; open\\nEND:VEVENT"
   );
 });
 
