@@ -9,6 +9,7 @@ import QRCodeStyling, {
   CornerDotType 
 } from 'qr-code-styling';
 import { cn } from '../lib/utils';
+import { buildStandaloneSvg, svgDownloadFilename } from '../lib/svgDownload';
 
 interface QRPreviewProps {
   value: string;
@@ -81,14 +82,22 @@ export const QRPreview = React.memo(forwardRef<QRPreviewHandle, QRPreviewProps>(
 
       try {
         if (extension === 'svg') {
+          // update() above redraws the code in the background, so wait for
+          // the new drawing to finish before reading the svg out of the
+          // page. Without the wait the download came out blank whenever
+          // the background was hidden, because the fresh svg had no shapes
+          // in it yet. getRawData waits on the drawing promise, and the
+          // extra tick lets the logo touch-ups land too.
+          await qrCode.current.getRawData('svg');
+          await new Promise((resolve) => setTimeout(resolve, 0));
           const svgElement = ref.current?.querySelector('svg');
           if (svgElement) {
-            const svgData = new XMLSerializer().serializeToString(svgElement);
+            const svgData = buildStandaloneSvg(new XMLSerializer().serializeToString(svgElement));
             const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
             const svgUrl = URL.createObjectURL(svgBlob);
             const downloadLink = document.createElement('a');
             downloadLink.href = svgUrl;
-            downloadLink.download = `qr-code-${Date.now()}.svg`;
+            downloadLink.download = svgDownloadFilename();
             document.body.appendChild(downloadLink);
             downloadLink.click();
             document.body.removeChild(downloadLink);
