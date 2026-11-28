@@ -12,11 +12,20 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar,
   Legend
 } from 'recharts';
-import { format, startOfDay, subDays, eachDayOfInterval, isSameDay, parseISO } from 'date-fns';
+import { format, subDays, parseISO } from 'date-fns';
 import { subscribeToQRAnalytics, subscribeToCampaignVariations } from '../services/db';
 import { db } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { cn } from '../lib/utils';
+import {
+  countByDevice,
+  countByOs,
+  filterScansByDateRange,
+  hourlyCounts,
+  topBrowsers,
+  topLocations,
+  trendByDay,
+} from '../lib/analytics';
 
 interface AnalyticsDashboardProps {
   qrId: string;
@@ -90,13 +99,11 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ qrId, qr
     };
   }, [qrId, campaignId]);
 
-  const filteredScans = scans.filter(scan => {
-    const scanDate = scan.timestamp?.toDate();
-    if (!scanDate) return true;
-    const start = dateRange.start ? parseISO(dateRange.start) : subDays(new Date(), 30);
-    const end = dateRange.end ? parseISO(dateRange.end) : new Date();
-    return scanDate >= start && scanDate <= end;
-  });
+  const filteredScans = filterScansByDateRange(
+    scans,
+    dateRange.start ? parseISO(dateRange.start) : subDays(new Date(), 30),
+    dateRange.end ? parseISO(dateRange.end) : new Date()
+  );
 
   const fetchComparison = useCallback(async () => {
     setIsComparing(true);
@@ -108,10 +115,11 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ qrId, qr
       const prevEnd = parseISO(dateRange.start);
       const prevStart = subDays(prevEnd, days);
 
-      const currentScans = filteredScans.filter(s => {
-        const d = s.timestamp?.toDate();
-        return d && d >= parseISO(dateRange.start) && d <= parseISO(dateRange.end);
-      });
+      const currentScans = filterScansByDateRange(
+        filteredScans,
+        parseISO(dateRange.start),
+        parseISO(dateRange.end)
+      );
       const prevScans = scans.filter(s => {
         const d = s.timestamp?.toDate();
         return d && d >= prevStart && d < prevEnd;
@@ -279,88 +287,20 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ qrId, qr
 
   const processTrendData = () => {
     if (dateRange.start && dateRange.end) {
-      const days = eachDayOfInterval({
-        start: parseISO(dateRange.start),
-        end: parseISO(dateRange.end),
-      });
-      return days.map(day => {
-        const count = filteredScans.filter(scan => {
-          const scanDate = scan.timestamp?.toDate();
-          return scanDate && isSameDay(scanDate, day);
-        }).length;
-        return { date: format(day, 'MMM dd'), scans: count };
-      });
+      return trendByDay(filteredScans, parseISO(dateRange.start), parseISO(dateRange.end));
     }
-    const last7Days = eachDayOfInterval({
-      start: subDays(new Date(), 6),
-      end: new Date()
-    });
-    return last7Days.map(day => {
-      const count = filteredScans.filter(scan => {
-        const scanDate = scan.timestamp?.toDate();
-        return scanDate && isSameDay(scanDate, day);
-      }).length;
-      return { date: format(day, 'MMM dd'), scans: count };
-    });
+    return trendByDay(filteredScans, subDays(new Date(), 6), new Date());
   };
 
-  const processDeviceData = () => {
-    const devices: Record<string, number> = {};
-    filteredScans.forEach(scan => {
-      const type = scan.device?.type || 'desktop';
-      devices[type] = (devices[type] || 0) + 1;
-    });
-    return Object.entries(devices).map(([name, value]) => ({ name, value }));
-  };
+  const processDeviceData = () => countByDevice(filteredScans);
 
-  const processLocationData = () => {
-    const locations: Record<string, number> = {};
-    filteredScans.forEach(scan => {
-      const country = scan.location?.country || 'Unknown';
-      locations[country] = (locations[country] || 0) + 1;
-    });
-    return Object.entries(locations)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  };
+  const processLocationData = () => topLocations(filteredScans);
 
-  const processBrowserData = () => {
-    const browsers: Record<string, number> = {};
-    filteredScans.forEach(scan => {
-      const browser = scan.device?.browser || 'Unknown';
-      browsers[browser] = (browsers[browser] || 0) + 1;
-    });
-    return Object.entries(browsers)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  };
+  const processBrowserData = () => topBrowsers(filteredScans);
 
-  const processHourlyData = () => {
-    const hours: Record<number, number> = {};
-    for (let i = 0; i < 24; i++) hours[i] = 0;
-    filteredScans.forEach(scan => {
-      const date = scan.timestamp?.toDate();
-      if (date) {
-        const hour = date.getHours();
-        hours[hour] = (hours[hour] || 0) + 1;
-      }
-    });
-    return Object.entries(hours).map(([hour, count]) => ({
-      hour: `${hour}:00`,
-      scans: count
-    }));
-  };
+  const processHourlyData = () => hourlyCounts(filteredScans);
 
-  const processOSData = () => {
-    const os: Record<string, number> = {};
-    filteredScans.forEach(scan => {
-      const name = scan.device?.os || 'Unknown';
-      os[name] = (os[name] || 0) + 1;
-    });
-    return Object.entries(os).map(([name, value]) => ({ name, value }));
-  };
+  const processOSData = () => countByOs(filteredScans);
 
   const trendData = processTrendData();
   const deviceData = processDeviceData();
