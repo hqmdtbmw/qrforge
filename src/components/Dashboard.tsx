@@ -56,6 +56,7 @@ import { AdminSettings } from './AdminSettings';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/Select';
 import { TemplateGallery } from './TemplateGallery';
 import { PrintOutputModal } from './PrintOutputModal';
+import { PrintSheetModal } from './PrintSheetModal';
 import { CustomDomainWizard } from './CustomDomainWizard';
 import { GlobalSearch } from './GlobalSearch';
 
@@ -96,6 +97,7 @@ export const Dashboard: React.FC<{ onOpenSettings: () => void, onOpenAdmin: () =
   const [taskCounts, setTaskCounts] = useState({ total: 0, completed: 0 });
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showPrintSheetModal, setShowPrintSheetModal] = useState(false);
   const [pendingTemplateDesign, setPendingTemplateDesign] = useState<any>(null);
   const [showDomainWizard, setShowDomainWizard] = useState(false);
   const [activeDomainQr, setActiveDomainQr] = useState<any>(null);
@@ -1157,6 +1159,15 @@ export const Dashboard: React.FC<{ onOpenSettings: () => void, onOpenAdmin: () =
                       Print
                     </button>
 
+                    <button
+                      onClick={() => setShowPrintSheetModal(true)}
+                      disabled={selectedIds.length === 0}
+                      className="p-1 sm:p-1.5 bg-secondary text-foreground rounded-lg hover:bg-border transition-all flex items-center gap-1 text-[8px] font-bold uppercase disabled:opacity-50 whitespace-nowrap"
+                    >
+                      <LayoutGrid className="w-3 h-3" />
+                      Sheet
+                    </button>
+
                     <DropdownMenu.Root>
                       <DropdownMenu.Trigger asChild>
                         <button className="p-1 sm:p-1.5 bg-secondary text-foreground rounded-lg hover:bg-border transition-all flex items-center gap-1 text-[8px] font-bold uppercase whitespace-nowrap">
@@ -1828,6 +1839,15 @@ export const Dashboard: React.FC<{ onOpenSettings: () => void, onOpenAdmin: () =
           <PrintOutputModal
             qrs={filteredQrs.filter(q => selectedIds.includes(q.id))}
             onClose={() => setShowPrintModal(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showPrintSheetModal && (
+          <PrintSheetModal
+            qrs={filteredQrs.filter(q => selectedIds.includes(q.id))}
+            onClose={() => setShowPrintSheetModal(false)}
           />
         )}
       </AnimatePresence>

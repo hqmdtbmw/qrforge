@@ -220,3 +220,26 @@
     @apply w-full bg-secondary/50 border-none rounded-2xl px-4 py-3 text-xs font-bold placeholder:text-muted-foreground/50 focus:ring-2 focus:ring-primary/20 transition-all;
   }
 }
+
+/* Print sheet: when the user prints, only the sheet goes to the printer.
+   The app itself stays on screen. Each sheet page is sized in millimetres
+   to match the page, and breaks onto its own printed page. */
+@media print {
+  body > #root {
+    display: none !important;
+  }
+
+  .print-sheet-root {
+    display: block !important;
+  }
+
+  .print-sheet-page {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .print-sheet-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
